@@ -1,0 +1,15 @@
+.hover-sidebar-debug-line {
+	position: absolute;
+	background-color: red;
+	height: 100%;
+	width: 1px;
+	top: 0;
+	z-index: var(--layer-dragged-item);
+}
+
+.hover-sidebar-debug-line-left {
+	left: 0;
+}
+.hover-sidebar-debug-line-right {
+	right: 0;
+}

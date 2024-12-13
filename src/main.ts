@@ -6,12 +6,31 @@ export default class HoverSidebar extends Plugin {
 		new Notice("HoverSidebar plugin loaded");
 		this.addSettingTab(new HoverSidebarSettingTab(this.app, this));
 
-		i18nextExample();
+		const left = 20;
+		const right = 20;
+
+		const calculatedWidth = parseInt(getComputedStyle(document.body).width);
+		const { leftSplit, rightSplit, rootSplit } = this.app.workspace;
+
+		insertDebugLines(this, left, right);
+
+		this.registerDomEvent(rootSplit.containerEl, "mouseenter", (e) => {
+			leftSplit.collapse();
+			rightSplit.collapse();
+		});
+
+		this.registerDomEvent(document.body, "mousemove", (e) => {
+			const { clientX, currentTarget } = e;
+			if (clientX <= left) {
+				leftSplit.expand();
+			}
+			if (clientX >= calculatedWidth - right) {
+				rightSplit.expand();
+			}
+		});
 	}
 
-	onunload(): void {
-		new Notice("HoverSidebar plugin unloaded");
-	}
+	onunload(): void {}
 }
 
 class HoverSidebarSettingTab extends PluginSettingTab {
@@ -35,3 +54,22 @@ const i18nextExample = () => {
 	new Notice(text("hello"));
 	new Notice(text("good.morning"));
 };
+
+const leftDebugLineId = "hover-siderbar-left-debug-line";
+const rightDebugLineId = "hover-siderbar-right-debug-line";
+
+const insertDebugLines = (plugin: Plugin, left: number, right: number) => {
+	const leftLine =
+		document.getElementById(leftDebugLineId) ?? createDebugLine(true);
+	const rightLine =
+		document.getElementById(rightDebugLineId) ?? createDebugLine(false);
+
+	leftLine.style.left = left + "px";
+	rightLine.style.right = right + "px";
+};
+
+const createDebugLine = (left: boolean) =>
+	document.body.createDiv({
+		cls: "hover-sidebar-debug-line",
+		attr: { id: left ? leftDebugLineId : rightDebugLineId },
+	});
