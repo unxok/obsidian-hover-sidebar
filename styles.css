@@ -13,3 +13,19 @@
 .hover-sidebar-debug-line-right {
 	right: 0;
 }
+
+.hover-sidebar-floating.workspace-split.mod-horizontal.mod-sidedock {
+	position: absolute;
+	top: 0;
+	z-index: var(--layer-popover);
+
+	&.mod-left-split {
+		left: var(--ribbon-width);
+		box-shadow: 15px 0 20px -2px rgba(0, 0, 0, 0.4);
+	}
+
+	&.mod-right-split {
+		right: 0;
+		box-shadow: -15px 0 20px -2px rgba(0, 0, 0, 0.4);
+	}
+}
