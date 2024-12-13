@@ -1,20 +1,20 @@
 import { Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { text } from "./i18next";
 
-export default class ObsidianVite extends Plugin {
+export default class HoverSidebar extends Plugin {
 	onload(): Promise<void> | void {
-		new Notice("ObsidianVite plugin loaded");
-		this.addSettingTab(new ObsidianViteSettingTab(this.app, this));
+		new Notice("HoverSidebar plugin loaded");
+		this.addSettingTab(new HoverSidebarSettingTab(this.app, this));
 
 		i18nextExample();
 	}
 
 	onunload(): void {
-		new Notice("ObsidianVite plugin unloaded");
+		new Notice("HoverSidebar plugin unloaded");
 	}
 }
 
-class ObsidianViteSettingTab extends PluginSettingTab {
+class HoverSidebarSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
