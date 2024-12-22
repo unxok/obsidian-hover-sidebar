@@ -5,12 +5,14 @@ import {
 	WorkspaceMobileDrawer,
 	WorkspaceSidedock,
 } from "obsidian";
+import { floatingClassName } from "./libs/constants";
 
 export type ModifiedWorkspaceSideDock = (
 	| WorkspaceSidedock
 	| WorkspaceMobileDrawer
 ) & {
 	pinned?: boolean;
+	floating?: boolean;
 };
 
 const patchKey = "hover-sidebar";
@@ -50,18 +52,31 @@ export const patchMenu = (plugin: Plugin) => {
 				}
 
 				const isPinned = !!sideSplit.pinned;
+				const isFloating =
+					sideSplit.containerEl.classList.contains(floatingClassName);
 
-				that.addItem((item) =>
-					item
-						.setSection("pin")
-						.setTitle("Pinned")
-						.setIcon("pin")
-						.setChecked(isPinned)
-						.onClick(() => {
-							sideSplit.pinned = !isPinned;
-							sideSplit.expand();
-						})
-				);
+				that
+					.addItem((item) =>
+						item
+							.setSection("hover-sidebar-options")
+							.setTitle("Pinned")
+							.setIcon("pin")
+							.setChecked(isPinned)
+							.onClick(() => {
+								sideSplit.pinned = !isPinned;
+								sideSplit.expand();
+							})
+					)
+					.addItem((item) =>
+						item
+							.setSection("hover-sidebar-options")
+							.setTitle("Floating")
+							.setIcon("square-split-horizontal")
+							.setChecked(isFloating)
+							.onClick(() => {
+								sideSplit.containerEl.classList.toggle(floatingClassName);
+							})
+					);
 
 				return exit();
 			});

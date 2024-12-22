@@ -1,115 +1,42 @@
-import { Notice, Plugin } from "obsidian";
-import { text } from "./i18next";
+import { debounce, Notice, Plugin, WorkspaceRoot } from "obsidian";
 import { ModifiedWorkspaceSideDock, patchMenu } from "./patchMenu";
 import {
 	HoverSidebarSettingTab,
 	HoverSidebarSettings,
 	defaultSettings,
 } from "./settingsTab";
-import { insertDebugLines, removeDebugLines } from "./debugLines";
+import { removeDebugLines, getDebugLines } from "./debugLines";
+import { floatingClassName } from "./libs/constants";
+import { isModalOrMenuOpen } from "./libs/utils";
 
 export default class HoverSidebar extends Plugin {
 	public settings: HoverSidebarSettings = { ...defaultSettings };
-	private windowOutTimerRef: number | undefined = undefined;
-	private leftCloseTimerRef: number | undefined = undefined;
-	private rightCloseTimerRef: number | undefined = undefined;
+	private windowOutTimerRef: number | undefined;
+	private leftCloseTimerRef: number | undefined;
+	private leftOpenTimerRef: number | undefined;
+	private rightCloseTimerRef: number | undefined;
+	private rootSplit: WorkspaceRoot | undefined;
+	private leftSplit: ModifiedWorkspaceSideDock | undefined;
+	private rightSplit: ModifiedWorkspaceSideDock | undefined;
+	private isRightSplitResizing: boolean = false;
+	private isLeftSplitResizing: boolean = false;
 
 	async onload(): Promise<void> {
 		this.settings = await this.getSettings();
 		this.addSettingTab(new HoverSidebarSettingTab(this));
+		this.app.workspace.onLayoutReady(() => this.onLayoutReady());
+	}
 
-		this.app.workspace.onLayoutReady(() => {
-			this.updateFloating();
-			patchMenu(this);
-			if (this.settings.showDebugLines) {
-				insertDebugLines(
-					this.settings.leftTriggerDistance,
-					this.settings.rightTriggerDistance
-				);
-			} else {
-				removeDebugLines();
-			}
-
-			let calculatedWidth = getWindowWidth();
-			const { rootSplit } = this.app.workspace;
-			const leftSplit = this.app.workspace
-				.leftSplit as ModifiedWorkspaceSideDock;
-			const rightSplit = this.app.workspace
-				.rightSplit as ModifiedWorkspaceSideDock;
-
-			this.registerDomEvent(window, "resize", () => {
-				calculatedWidth = getWindowWidth();
-			});
-
-			this.registerDomEvent(document.documentElement, "mouseleave", () => {
-				if (!this.settings.windowOutEnabled) return;
-				window.clearTimeout(this.windowOutTimerRef);
-				this.windowOutTimerRef = window.setTimeout(() => {
-					if (this.settings.leftSideEnabled && !leftSplit.pinned)
-						leftSplit.collapse();
-					if (this.settings.rightSideEnabled && !rightSplit.pinned)
-						rightSplit.collapse();
-				}, this.settings.windowOutDelay);
-			});
-
-			this.registerDomEvent(rootSplit.containerEl, "mousemove", (e) => {
-				if (
-					this.settings.leftSideEnabled &&
-					!leftSplit.collapsed &&
-					!leftSplit.pinned &&
-					e.clientX > this.settings.leftTriggerDistance
-				) {
-					this.leftCloseTimerRef = window.setTimeout(() => {
-						leftSplit.collapse();
-					}, this.settings.leftCloseDelay);
-				}
-				if (
-					this.settings.rightSideEnabled &&
-					!rightSplit.collapsed &&
-					!rightSplit.pinned &&
-					e.clientX < calculatedWidth - this.settings.rightTriggerDistance
-				) {
-					this.rightCloseTimerRef = window.setTimeout(() => {
-						rightSplit.collapse();
-					}, this.settings.rightCloseDelay);
-				}
-			});
-
-			this.registerDomEvent(rootSplit.containerEl, "mouseleave", () => {
-				window.clearTimeout(this.leftCloseTimerRef);
-				window.clearTimeout(this.rightCloseTimerRef);
-			});
-
-			this.registerDomEvent(document.body, "mousemove", (e) => {
-				window.clearTimeout(this.windowOutTimerRef);
-				if (isModalOrMenuOpen()) return;
-				const { clientX } = e;
-				if (
-					this.settings.leftSideEnabled &&
-					leftSplit.collapsed &&
-					clientX <= this.settings.leftTriggerDistance
-				) {
-					window.clearTimeout(this.leftCloseTimerRef);
-					leftSplit.expand();
-				}
-				if (
-					this.settings.rightSideEnabled &&
-					rightSplit.collapsed &&
-					clientX >= calculatedWidth - this.settings.rightTriggerDistance
-				) {
-					window.clearTimeout(this.rightCloseTimerRef);
-					rightSplit.expand();
-				}
-			});
-			this.registerDomEvent(leftSplit.containerEl, "mousemove", () => {
-				if (!this.settings.leftSideEnabled) return;
-				window.clearTimeout(this.leftCloseTimerRef);
-			});
-			this.registerDomEvent(rightSplit.containerEl, "mousemove", () => {
-				if (!this.settings.rightSideEnabled) return;
-				window.clearTimeout(this.rightCloseTimerRef);
-			});
-		});
+	onLayoutReady(): void {
+		patchMenu(this);
+		this.updateFloating();
+		this.initializeDebugLines();
+		this.initializeSplits();
+		this.monitorDocumentRoot();
+		this.monitorDocumentBody();
+		this.monitorRootSplit();
+		this.monitorLeftSplit();
+		this.monitorRightSplit();
 	}
 
 	onunload(): void {
@@ -151,35 +78,250 @@ export default class HoverSidebar extends Plugin {
 	}
 
 	updateFloating() {
-		const className = "hover-sidebar-floating";
 		const { leftSideEnabled, rightSideEnabled, leftFloating, rightFloating } =
 			this.settings;
-		const { leftSplit, rightSplit } = this.app.workspace;
-		if (leftSideEnabled) {
-			if (leftFloating) {
-				leftSplit.containerEl.classList.add(className);
-			} else {
-				leftSplit.containerEl.classList.remove(className);
-			}
+		const {
+			leftSplit: { containerEl: leftContainer },
+			rightSplit: { containerEl: rightContainer },
+		} = this.app.workspace;
+
+		if (leftSideEnabled && leftFloating) {
+			leftContainer.classList.add(floatingClassName);
+		} else {
+			leftContainer.classList.remove(floatingClassName);
 		}
-		if (rightSideEnabled) {
-			if (rightFloating) {
-				rightSplit.containerEl.classList.add(className);
-			} else {
-				rightSplit.containerEl.classList.remove(className);
-			}
+		if (rightSideEnabled && rightFloating) {
+			rightContainer.classList.add(floatingClassName);
+		} else {
+			rightContainer.classList.remove(floatingClassName);
 		}
 	}
+
+	initializeDebugLines(): void {
+		const {
+			showDebugLines,
+			leftTriggerDistance,
+			leftDebugLineColor,
+			rightTriggerDistance,
+			rightDebugLineColor,
+		} = this.settings;
+
+		if (!showDebugLines) {
+			removeDebugLines();
+			return;
+		}
+
+		getDebugLines(
+			{ pos: leftTriggerDistance, backgroundColor: leftDebugLineColor },
+			{ pos: rightTriggerDistance, backgroundColor: rightDebugLineColor }
+		);
+	}
+
+	initializeSplits(): void {
+		const { rootSplit, leftSplit, rightSplit } = this.app.workspace;
+		this.rootSplit = rootSplit;
+		this.leftSplit = leftSplit;
+		this.rightSplit = rightSplit;
+	}
+
+	monitorDocumentRoot(): void {
+		const { leftSplit, rightSplit } = this;
+		if (!leftSplit || !rightSplit) return;
+
+		this.registerDomEvent(document.documentElement, "mouseleave", () => {
+			const {
+				windowOutTimerRef,
+				settings,
+				isLeftSplitResizing,
+				isRightSplitResizing,
+			} = this;
+			const {
+				windowOutEnabled,
+				leftSideEnabled,
+				rightSideEnabled,
+				windowOutDelay,
+			} = settings;
+
+			if (!windowOutEnabled || isModalOrMenuOpen()) return;
+
+			window.clearTimeout(windowOutTimerRef);
+			this.windowOutTimerRef = window.setTimeout(() => {
+				if (!isLeftSplitResizing && leftSideEnabled && !leftSplit.pinned)
+					leftSplit.collapse();
+				if (!isRightSplitResizing && rightSideEnabled && !rightSplit.pinned)
+					rightSplit.collapse();
+			}, windowOutDelay);
+		});
+	}
+
+	monitorDocumentBody(): void {
+		const { leftSplit, rightSplit } = this;
+		if (!leftSplit || !rightSplit) return;
+
+		this.registerDomEvent(document.body, "mousemove", (e) => {
+			const {
+				windowOutTimerRef,
+				leftCloseTimerRef,
+				rightCloseTimerRef,
+				isLeftSplitResizing,
+				isRightSplitResizing,
+				settings,
+			} = this;
+			const {
+				leftSideEnabled,
+				leftTriggerDistance,
+				// leftOpenDelay,
+				rightSideEnabled,
+				rightTriggerDistance,
+			} = settings;
+
+			if (isModalOrMenuOpen()) return;
+			window.clearTimeout(windowOutTimerRef);
+
+			const { clientX } = e;
+			if (
+				!isLeftSplitResizing &&
+				leftSideEnabled &&
+				leftSplit.collapsed &&
+				clientX <= leftTriggerDistance
+			) {
+				window.clearTimeout(leftCloseTimerRef);
+				// this.leftOpenTimerRef = window.setTimeout(() => {
+				leftSplit.expand();
+				// }, leftOpenDelay);
+			}
+			if (
+				!isRightSplitResizing &&
+				rightSideEnabled &&
+				rightSplit.collapsed &&
+				clientX >= document.body.offsetWidth - rightTriggerDistance
+			) {
+				window.clearTimeout(rightCloseTimerRef);
+				rightSplit.expand();
+			}
+		});
+	}
+
+	monitorRootSplit(): void {
+		const { leftSplit, rightSplit, rootSplit } = this;
+		if (!leftSplit || !rightSplit || !rootSplit) return;
+
+		const onMouseEnter = () => {
+			const { isLeftSplitResizing, isRightSplitResizing } = this;
+			const {
+				leftSideEnabled,
+				leftCloseDelay,
+				rightSideEnabled,
+				rightCloseDelay,
+			} = this.settings;
+
+			if (isModalOrMenuOpen()) {
+				// mosueenter won't fire again if menu is closed when mouse is within rootSplit
+				const onMouseMove = () => {
+					if (isModalOrMenuOpen()) return;
+					// menu is closed and mouse is moving within rootSplit
+					remove();
+					onMouseEnter();
+				};
+				const remove = () =>
+					rootSplit.containerEl.removeEventListener("mousemove", onMouseMove);
+				this.register(remove);
+				rootSplit.containerEl.addEventListener("mousemove", onMouseMove);
+
+				return;
+			}
+
+			if (
+				!isLeftSplitResizing &&
+				leftSideEnabled &&
+				!leftSplit.collapsed &&
+				!leftSplit.pinned
+			) {
+				this.leftCloseTimerRef = window.setTimeout(() => {
+					leftSplit.collapse();
+				}, leftCloseDelay);
+			}
+			if (
+				!isRightSplitResizing &&
+				rightSideEnabled &&
+				!rightSplit.collapsed &&
+				!rightSplit.pinned
+			) {
+				this.rightCloseTimerRef = window.setTimeout(() => {
+					rightSplit.collapse();
+				}, rightCloseDelay);
+			}
+		};
+
+		this.registerDomEvent(rootSplit.containerEl, "mouseenter", onMouseEnter);
+
+		this.registerDomEvent(rootSplit.containerEl, "mouseleave", () => {
+			window.clearTimeout(this.leftCloseTimerRef);
+			window.clearTimeout(this.rightCloseTimerRef);
+		});
+	}
+
+	monitorLeftSplit(): void {
+		this.monitorSideSplit(true);
+	}
+
+	monitorRightSplit(): void {
+		this.monitorSideSplit(false);
+	}
+
+	monitorSideSplit(left: boolean): void {
+		const split = left ? this.leftSplit : this.rightSplit;
+		const timerRef = left ? this.leftCloseTimerRef : this.rightCloseTimerRef;
+		const toggleBtn = document.querySelector(
+			"div.sidebar-toggle-button." + (left ? "mod-left" : "mod-right")
+		) as HTMLElement;
+		if (!split) return;
+
+		if (toggleBtn) {
+			const onDblClick = () => {
+				split.pinned = !split.pinned;
+			};
+			toggleBtn.addEventListener("dblclick", onDblClick);
+
+			this.register(() =>
+				toggleBtn.removeEventListener("dblclick", onDblClick)
+			);
+		}
+
+		this.registerDomEvent(split.containerEl, "mousemove", () => {
+			const isEnabled = left
+				? this.settings.leftSideEnabled
+				: this.settings.rightSideEnabled;
+			if (!isEnabled) return;
+			window.clearTimeout(timerRef);
+		});
+
+		// TODO unsure if this is actually helping anything
+		// const onWidthStable = debounce(
+		// 	() => {
+		// 		if (left) {
+		// 			this.isLeftSplitResizing = false;
+		// 			return;
+		// 		}
+		// 		this.isRightSplitResizing = false;
+		// 	},
+		// 	250,
+		// 	true
+		// );
+
+		// const obs = new ResizeObserver((entries) => {
+		// 	for (let _entry of entries) {
+		// 		if (left) {
+		// 			this.isLeftSplitResizing = true;
+		// 		} else {
+		// 			this.isRightSplitResizing = true;
+		// 		}
+		// 		onWidthStable();
+		// 	}
+		// });
+
+		// this.register(() => obs.disconnect());
+
+		// obs.observe(split.containerEl);
+	}
 }
-
-// EXAMPLE using i18next
-const i18nextExample = () => {
-	new Notice(text("hello"));
-	new Notice(text("good.morning"));
-};
-
-const getWindowWidth = () => parseInt(getComputedStyle(document.body).width);
-
-const isModalOrMenuOpen = () => {
-	return !!document.body.querySelector("& > .menu, & > .modal-container");
-};
