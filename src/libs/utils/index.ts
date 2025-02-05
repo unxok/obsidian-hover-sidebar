@@ -18,3 +18,16 @@ const isElMenuOrModal = (el: Element) => {
 		el.classList.contains("menu") || el.classList.contains("modal-container")
 	);
 };
+
+export const throttle = <T extends unknown[]>(
+	cb: (...args: T) => void,
+	ms: number
+) => {
+	let previous = performance.now();
+	return (...args: T) => {
+		const now = performance.now();
+		if (now - previous < ms) return;
+		previous = now;
+		cb(...args);
+	};
+};

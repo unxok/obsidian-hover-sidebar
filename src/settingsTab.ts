@@ -9,6 +9,7 @@ import {
 import { text } from "./i18next";
 
 export type HoverSidebarSettings = {
+	mouseDelay: number;
 	showDebugLines: boolean;
 	leftDebugLineColor: string;
 	rightDebugLineColor: string;
@@ -26,6 +27,7 @@ export type HoverSidebarSettings = {
 };
 
 export const defaultSettings: HoverSidebarSettings = {
+	mouseDelay: 250,
 	showDebugLines: true,
 	leftDebugLineColor: "#ff1100",
 	rightDebugLineColor: "#0091ff",
@@ -139,6 +141,36 @@ export class HoverSidebarSettingTab extends PluginSettingTab {
 				cmp
 					.setValue(plugin.settings.windowOutEnabled)
 					.onChange((b) => update("windowOutEnabled", b))
+					.then(() => {
+						const s = new Setting(containerEl)
+							.setName("Window out delay")
+							.setDesc(
+								"How long to wait between checking if the mouse is in the window."
+							)
+							.addText((subCmp) =>
+								subCmp
+									.setValue(plugin.settings.windowOutDelay.toString())
+									.setPlaceholder("250")
+									.onChange((v) =>
+										update("windowOutDelay", Math.max(Number(v), 0))
+									)
+							);
+						cmp.onChange((b) =>
+							b
+								? s.settingEl.style.removeProperty("display")
+								: s.settingEl.style.setProperty("display", "none")
+						);
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Mouse delay")
+			.setDesc("How long to wait between checking where the mouse is.")
+			.addText((cmp) =>
+				cmp
+					.setValue(plugin.settings.mouseDelay.toString())
+					.setPlaceholder("250")
+					.onChange((v) => update("mouseDelay", Math.max(Number(v), 0)))
 			);
 
 		new Setting(containerEl)
@@ -194,30 +226,30 @@ export class HoverSidebarSettingTab extends PluginSettingTab {
 				})
 			);
 
-		new Setting(leftSettingsContainer)
-			.setName(text("settings.leftSidebar.closeDelay.name"))
-			.setDesc(text("settings.leftSidebar.closeDelay.desc"))
-			.addText((cmp) =>
-				cmp
-					.setValue(plugin.settings.leftCloseDelay.toString())
-					.onChange((v) => {
-						const num = Number(v);
-						if (Number.isNaN(num)) {
-							cmp.setValue(defaultSettings["leftCloseDelay"].toString());
-							return cmp.onChanged();
-						}
-						update("leftCloseDelay", num);
-						removeDebugLines();
-						this.placeDebugLines();
-					})
-					.then(() => (cmp.inputEl.type = "number"))
-			)
-			.addExtraButton((cmp) =>
-				cmp.setIcon("rotate-ccw").onClick(() => {
-					update("leftCloseDelay", defaultSettings["leftCloseDelay"]);
-					this.display();
-				})
-			);
+		// new Setting(leftSettingsContainer)
+		// 	.setName(text("settings.leftSidebar.closeDelay.name"))
+		// 	.setDesc(text("settings.leftSidebar.closeDelay.desc"))
+		// 	.addText((cmp) =>
+		// 		cmp
+		// 			.setValue(plugin.settings.leftCloseDelay.toString())
+		// 			.onChange((v) => {
+		// 				const num = Number(v);
+		// 				if (Number.isNaN(num)) {
+		// 					cmp.setValue(defaultSettings["leftCloseDelay"].toString());
+		// 					return cmp.onChanged();
+		// 				}
+		// 				update("leftCloseDelay", num);
+		// 				removeDebugLines();
+		// 				this.placeDebugLines();
+		// 			})
+		// 			.then(() => (cmp.inputEl.type = "number"))
+		// 	)
+		// 	.addExtraButton((cmp) =>
+		// 		cmp.setIcon("rotate-ccw").onClick(() => {
+		// 			update("leftCloseDelay", defaultSettings["leftCloseDelay"]);
+		// 			this.display();
+		// 		})
+		// 	);
 
 		new Setting(containerEl)
 			.setHeading()
@@ -275,30 +307,30 @@ export class HoverSidebarSettingTab extends PluginSettingTab {
 				})
 			);
 
-		new Setting(rightSettingsContainer)
-			.setName(text("settings.rightSidebar.closeDelay.name"))
-			.setDesc(text("settings.rightSidebar.closeDelay.name"))
-			.addText((cmp) =>
-				cmp
-					.setValue(plugin.settings.rightCloseDelay.toString())
-					.onChange((v) => {
-						const num = Number(v);
-						if (Number.isNaN(num)) {
-							cmp.setValue(defaultSettings["rightCloseDelay"].toString());
-							return cmp.onChanged();
-						}
-						update("rightCloseDelay", num);
-						removeDebugLines();
-						this.placeDebugLines();
-					})
-					.then(() => (cmp.inputEl.type = "number"))
-			)
-			.addExtraButton((cmp) =>
-				cmp.setIcon("rotate-ccw").onClick(() => {
-					update("rightCloseDelay", defaultSettings["rightCloseDelay"]);
-					this.display();
-				})
-			);
+		// new Setting(rightSettingsContainer)
+		// 	.setName(text("settings.rightSidebar.closeDelay.name"))
+		// 	.setDesc(text("settings.rightSidebar.closeDelay.name"))
+		// 	.addText((cmp) =>
+		// 		cmp
+		// 			.setValue(plugin.settings.rightCloseDelay.toString())
+		// 			.onChange((v) => {
+		// 				const num = Number(v);
+		// 				if (Number.isNaN(num)) {
+		// 					cmp.setValue(defaultSettings["rightCloseDelay"].toString());
+		// 					return cmp.onChanged();
+		// 				}
+		// 				update("rightCloseDelay", num);
+		// 				removeDebugLines();
+		// 				this.placeDebugLines();
+		// 			})
+		// 			.then(() => (cmp.inputEl.type = "number"))
+		// 	)
+		// 	.addExtraButton((cmp) =>
+		// 		cmp.setIcon("rotate-ccw").onClick(() => {
+		// 			update("rightCloseDelay", defaultSettings["rightCloseDelay"]);
+		// 			this.display();
+		// 		})
+		// 	);
 
 		new Setting(this.containerEl).setHeading().setName("Resources");
 

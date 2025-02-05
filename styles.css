@@ -5,6 +5,7 @@
 	width: 1px;
 	top: 0;
 	z-index: var(--layer-dragged-item);
+	pointer-events: none;
 }
 
 .hover-sidebar-debug-line-left {
