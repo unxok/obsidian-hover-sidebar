@@ -135,7 +135,14 @@ export default class HoverSidebar extends Plugin {
 		}
 
 		const onMouseMove = (e: MouseEvent) => {
-			if (isModalOrMenuOpen()) return;
+			if (
+				isModalOrMenuOpen() ||
+				leftSplit.containerEl.contains(document.activeElement) ||
+				rightSplit.containerEl.contains(document.activeElement)
+			) {
+				return;
+			}
+
 			const {
 				settings: {
 					leftSideEnabled,
@@ -145,6 +152,7 @@ export default class HoverSidebar extends Plugin {
 				},
 				windowOutTimerRef,
 			} = this;
+
 			window.clearTimeout(windowOutTimerRef);
 			const { pageX, target } = e;
 			if (!(target instanceof HTMLElement)) {
